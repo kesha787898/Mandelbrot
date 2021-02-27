@@ -5,12 +5,15 @@
 
 namespace plt = matplotlibcpp;
 const bool NEED_CSV = false;
-int SPLITS_IN_E = 1000;
-const int MAX_ITER = 200;
-float X_MIN = -2;
-float X_MAX = 1;
-float Y_MIN = -1;
-float Y_MAX = 1;
+float X_MIN = -1.294;
+float X_MAX = -1.292;
+float Y_MIN = -0.440;
+float Y_MAX = -0.438;
+/*float X_MIN = -1.5;
+float X_MAX = -1;
+float Y_MIN = -0.25;
+float Y_MAX = 0.25;*/
+
 
 struct Point {
     float x;
@@ -36,7 +39,7 @@ bool is_in_cardioid(float ix, float iy) {
     return p <= powf(p_card, 2);
 }
 
-float iterable_check(float ix, float iy) {
+float iterable_check(float ix, float iy, int MAX_ITER) {
     if (is_in_cardioid(ix, iy)) {
         return 0;
     }
@@ -44,10 +47,10 @@ float iterable_check(float ix, float iy) {
     float zy = 0;
 
     for (int iter = 0; iter < MAX_ITER; iter++) {
-        if ((zx >= 2) or (zy >= 2)) {
+        if ((zx >= 2) or (zy >= 2)or(zy <= -2)or(zx <= -2)) {
             return (float) iter / MAX_ITER;
         }
-        if ((zx + zy) * (zx - zy) >= 4) {
+        if (powf(zx,2)+powf(zy,2) >= 4) {
             return (float) iter / MAX_ITER;
         }
         float next_zx = ix + (zx + zy) * (zx - zy);
@@ -58,7 +61,13 @@ float iterable_check(float ix, float iy) {
     return 0;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+    int SPLITS_IN_E = 250;
+    int MAX_ITER = 2000000;
+    if (argc >= 3) {
+        SPLITS_IN_E = atoi(argv[1]);;
+        MAX_ITER = atoi(argv[2]);;
+    }
     std::cout << "STARTED\n";
     unsigned int start_time = clock();
     fflush(stdout);
@@ -66,24 +75,25 @@ int main() {
 
     std::cout << "Calculating\n";
     fflush(stdout);
-    int x_splits = (int) (X_MAX - X_MIN) * SPLITS_IN_E;
-    int y_splits = (int) (Y_MAX - Y_MIN) * SPLITS_IN_E;
+    int x_splits =  fabs(X_MAX - X_MIN) * SPLITS_IN_E;
+    int y_splits =  fabs(Y_MAX - Y_MIN) * SPLITS_IN_E;
+    std::mutex lock;
+
+//#pragma omp parallel for
     for (int i = 0; i < x_splits; i++) {
         float ix = ((float) i / (float) x_splits) * (X_MAX - X_MIN) + X_MIN;
         if (i % ((x_splits / 10)) == 0) {
             std::cout << "0";
             fflush(stdout);
         }
-        std::mutex lock;
 
-//#pragma omp parallel for
         for (int j = 0; j < y_splits; j++) {
             float iy = (float) j / (float) y_splits * (Y_MAX - Y_MIN) + Y_MIN;
-            double check = iterable_check(ix, iy);
+            double check = iterable_check(ix, iy, MAX_ITER);
             if (check != 0) {
-                lock.lock();
+                //lock.lock();
                 points.emplace_back(ix, iy, check);
-                lock.unlock();
+                //lock.unlock();
             }
         }
     }
@@ -113,15 +123,14 @@ int main() {
     for (auto &i : points) {
         x.push_back(i.x);
         y.push_back(i.y);
-        z.push_back(i.z);
+        z.push_back(log(i.z));
     }
     unsigned int end_time = clock();
     unsigned int search_time = end_time - start_time;
-    std::cout << "runtime = " << search_time / 1000000.0 << "seconds\n";
+    std::cout << "runtime = " << search_time / 1000000.0 << " seconds\n";
     printf("DRAWING\n");
     fflush(stdout);
-
-    plt::scatter(x, y,z);
+    plt::scatter(x, y, z);
     plt::show();
 
     return 1;
